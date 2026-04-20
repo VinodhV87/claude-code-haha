@@ -60,6 +60,7 @@ vi.mock('../../stores/cliTaskStore', () => ({
       clearTasks: vi.fn(),
       setTasksFromTodos: vi.fn(),
       markCompletedAndDismissed: vi.fn(),
+      resetCompletedTasks: vi.fn(async () => {}),
       refreshTasks: vi.fn(),
     }),
   },

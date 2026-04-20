@@ -6,6 +6,7 @@ import { useCLITaskStore } from './cliTaskStore'
 vi.mock('../api/cliTasks', () => ({
   cliTasksApi: {
     getTasksForList: vi.fn(),
+    resetTaskList: vi.fn(),
   },
 }))
 
@@ -66,5 +67,43 @@ describe('cliTaskStore', () => {
     expect(useCLITaskStore.getState().tasks).toMatchObject([
       { taskListId: 'session-2', status: 'completed' },
     ])
+  })
+
+  it('resets a completed task list locally before clearing it remotely', async () => {
+    let resolveReset: ((value: { ok: true }) => void) | null = null
+
+    vi.mocked(cliTasksApi.resetTaskList).mockImplementation(
+      () => new Promise<{ ok: true }>((resolve) => {
+        resolveReset = resolve
+      }),
+    )
+
+    useCLITaskStore.setState({
+      sessionId: 'session-1',
+      tasks: [
+        makeTask('session-1', 'completed'),
+        { ...makeTask('session-1', 'completed'), id: '2', subject: 'Second completed task' },
+      ],
+      expanded: true,
+      completedAndDismissed: true,
+      dismissedCompletionKey: 'session-1::done',
+    })
+
+    const resetPromise = useCLITaskStore.getState().resetCompletedTasks()
+
+    expect(vi.mocked(cliTasksApi.resetTaskList)).toHaveBeenCalledWith('session-1')
+    expect(useCLITaskStore.getState()).toMatchObject({
+      tasks: [],
+      resetting: true,
+      completedAndDismissed: false,
+      dismissedCompletionKey: null,
+      expanded: false,
+    })
+
+    expect(resolveReset).not.toBeNull()
+    resolveReset!({ ok: true })
+    await resetPromise
+
+    expect(useCLITaskStore.getState().resetting).toBe(false)
   })
 })

@@ -12,7 +12,9 @@ const {
   clearTasksMock,
   setTasksFromTodosMock,
   markCompletedAndDismissedMock,
+  resetCompletedTasksMock,
   refreshTasksMock,
+  cliTaskStoreSnapshot,
 } = vi.hoisted(() => ({
   sendMock: vi.fn(),
   getMemberBySessionIdMock: vi.fn<(sessionId: string) => any>(() => null),
@@ -24,7 +26,12 @@ const {
   clearTasksMock: vi.fn(),
   setTasksFromTodosMock: vi.fn(),
   markCompletedAndDismissedMock: vi.fn(),
+  resetCompletedTasksMock: vi.fn(async () => {}),
   refreshTasksMock: vi.fn(),
+  cliTaskStoreSnapshot: {
+    tasks: [] as Array<{ id: string; subject: string; status: string; activeForm?: string }>,
+    sessionId: null as string | null,
+  },
 }))
 
 vi.mock('../api/websocket', () => ({
@@ -77,11 +84,12 @@ vi.mock('./cliTaskStore', () => ({
   useCLITaskStore: {
     getState: () => ({
       fetchSessionTasks: fetchSessionTasksMock,
-      tasks: [],
-      sessionId: null,
+      tasks: cliTaskStoreSnapshot.tasks,
+      sessionId: cliTaskStoreSnapshot.sessionId,
       clearTasks: clearTasksMock,
       setTasksFromTodos: setTasksFromTodosMock,
       markCompletedAndDismissed: markCompletedAndDismissedMock,
+      resetCompletedTasks: resetCompletedTasksMock,
       refreshTasks: refreshTasksMock,
     }),
   },
@@ -102,7 +110,10 @@ describe('chatStore history mapping', () => {
     clearTasksMock.mockReset()
     setTasksFromTodosMock.mockReset()
     markCompletedAndDismissedMock.mockReset()
+    resetCompletedTasksMock.mockReset()
     refreshTasksMock.mockReset()
+    cliTaskStoreSnapshot.tasks = []
+    cliTaskStoreSnapshot.sessionId = null
     useChatStore.setState({
       ...initialState,
       sessions: {},
@@ -411,6 +422,54 @@ describe('chatStore history mapping', () => {
       },
     ])
     expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.streamingText).toBe('')
+  })
+
+  it('resets completed CLI tasks before continuing the next user turn', () => {
+    cliTaskStoreSnapshot.sessionId = TEST_SESSION_ID
+    cliTaskStoreSnapshot.tasks = [
+      { id: '1', subject: 'Existing completed task', status: 'completed' },
+      { id: '2', subject: 'Another completed task', status: 'completed' },
+    ]
+
+    useChatStore.setState({
+      sessions: {
+        [TEST_SESSION_ID]: {
+          messages: [],
+          chatState: 'idle',
+          connectionState: 'connected',
+          streamingText: '',
+          streamingToolInput: '',
+          activeToolUseId: null,
+          activeToolName: null,
+          activeThinkingId: null,
+          pendingPermission: null,
+          pendingComputerUsePermission: null,
+          tokenUsage: { input_tokens: 0, output_tokens: 0 },
+          elapsedSeconds: 0,
+          statusVerb: '',
+          slashCommands: [],
+          agentTaskNotifications: {},
+          elapsedTimer: null,
+        },
+      },
+    })
+
+    useChatStore.getState().sendMessage(TEST_SESSION_ID, '继续下一轮')
+
+    expect(resetCompletedTasksMock).toHaveBeenCalledTimes(1)
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).toMatchObject([
+      {
+        type: 'task_summary',
+        tasks: [
+          { id: '1', subject: 'Existing completed task', status: 'completed' },
+          { id: '2', subject: 'Another completed task', status: 'completed' },
+        ],
+      },
+      {
+        type: 'user_text',
+        content: '继续下一轮',
+      },
+    ])
   })
 
   it('tracks Computer Use approval requests separately from generic tool permissions', () => {

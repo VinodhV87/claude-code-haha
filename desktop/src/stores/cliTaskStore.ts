@@ -13,6 +13,8 @@ type CLITaskStore = {
   sessionId: string | null
   /** Tasks for the current session */
   tasks: CLITask[]
+  /** True while the persisted task list is being cleared remotely */
+  resetting: boolean
   /** Whether the task bar is expanded */
   expanded: boolean
   /** True when all tasks completed and the user already continued chatting.
@@ -29,6 +31,8 @@ type CLITaskStore = {
   setTasksFromTodos: (todos: TodoItem[]) => void
   /** Mark that completed tasks were already dismissed (conversation continued) */
   markCompletedAndDismissed: () => void
+  /** Clear a completed task list locally and remotely so the next cycle starts clean */
+  resetCompletedTasks: () => Promise<void>
   /** Clear task tracking state */
   clearTasks: () => void
   /** Toggle expanded state */
@@ -78,6 +82,7 @@ function mapTodosToTasks(todos: TodoItem[], sessionId: string | null): CLITask[]
 export const useCLITaskStore = create<CLITaskStore>((set, get) => ({
   sessionId: null,
   tasks: [],
+  resetting: false,
   expanded: false,
   completedAndDismissed: false,
   dismissedCompletionKey: null,
@@ -87,6 +92,7 @@ export const useCLITaskStore = create<CLITaskStore>((set, get) => ({
       set({
         sessionId,
         tasks: [],
+        resetting: false,
         completedAndDismissed: false,
         dismissedCompletionKey: null,
         expanded: false,
@@ -96,7 +102,7 @@ export const useCLITaskStore = create<CLITaskStore>((set, get) => ({
     try {
       const { tasks } = await cliTasksApi.getTasksForList(sessionId)
       // Only update if still tracking the same session
-      if (get().sessionId === sessionId) {
+      if (get().sessionId === sessionId && !get().resetting) {
         set((state) => ({
           tasks,
           ...resolveDismissState(tasks, state.dismissedCompletionKey),
@@ -104,7 +110,7 @@ export const useCLITaskStore = create<CLITaskStore>((set, get) => ({
       }
     } catch {
       // No tasks for this session — that's fine
-      if (get().sessionId === sessionId) {
+      if (get().sessionId === sessionId && !get().resetting) {
         set({ tasks: [], completedAndDismissed: false, dismissedCompletionKey: null, expanded: false })
       }
     }
@@ -115,7 +121,7 @@ export const useCLITaskStore = create<CLITaskStore>((set, get) => ({
     if (!sessionId) return
     try {
       const { tasks } = await cliTasksApi.getTasksForList(sessionId)
-      if (get().sessionId === sessionId) {
+      if (get().sessionId === sessionId && !get().resetting) {
         set((state) => ({
           tasks,
           ...resolveDismissState(tasks, state.dismissedCompletionKey),
@@ -145,10 +151,33 @@ export const useCLITaskStore = create<CLITaskStore>((set, get) => ({
     })
   },
 
+  resetCompletedTasks: async () => {
+    const { sessionId, tasks } = get()
+    const completionKey = buildCompletedTaskKey(tasks)
+    if (!sessionId || !completionKey) return
+
+    set({
+      tasks: [],
+      resetting: true,
+      completedAndDismissed: false,
+      dismissedCompletionKey: null,
+      expanded: false,
+    })
+
+    try {
+      await cliTasksApi.resetTaskList(sessionId)
+    } finally {
+      if (get().sessionId === sessionId) {
+        set({ resetting: false })
+      }
+    }
+  },
+
   clearTasks: () => {
     set({
       sessionId: null,
       tasks: [],
+      resetting: false,
       completedAndDismissed: false,
       dismissedCompletionKey: null,
       expanded: false,

@@ -199,6 +199,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
     const taskStore = useCLITaskStore.getState()
     const allTasksDone = taskStore.tasks.length > 0 && taskStore.tasks.every((t) => t.status === 'completed')
+    const completedTaskSummary = allTasksDone
+      ? taskStore.tasks.map((t) => ({ id: t.id, subject: t.subject, status: t.status, activeForm: t.activeForm }))
+      : []
+
+    if (!isMemberSession && allTasksDone) {
+      void taskStore.resetCompletedTasks()
+    }
 
     set((s) => {
       const session = s.sessions[sessionId] ?? createDefaultSessionState()
@@ -225,10 +232,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         newMessages.push({
           id: nextId(),
           type: 'task_summary',
-          tasks: taskStore.tasks.map((t) => ({ id: t.id, subject: t.subject, status: t.status, activeForm: t.activeForm })),
+          tasks: completedTaskSummary,
           timestamp: Date.now(),
         })
-        taskStore.clearTasks()
       }
       newMessages.push({
         id: nextId(),
