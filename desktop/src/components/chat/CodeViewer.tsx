@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { ShikiHighlighter } from 'react-shiki'
+import { ShikiHighlighter, createJavaScriptRegexEngine } from 'react-shiki'
 import 'react-shiki/css'
 import { CopyButton } from '../shared/CopyButton'
 
@@ -46,6 +46,8 @@ const warmCodeTheme = {
 }
 
 const CODE_AREA_PADDING = '0.5rem 12px'
+const CODE_LINE_HEIGHT = 1.3
+const shikiEngine = createJavaScriptRegexEngine({ forgiving: true })
 
 /**
  * Wraps ShikiHighlighter with a plain-text fallback so the code area
@@ -76,7 +78,11 @@ function CodeArea({ code, language, showLineNumbers }: { code: string; language?
   }, [code, language])
 
   return (
-    <div ref={containerRef} className="code-viewer-area relative max-h-[420px] overflow-auto bg-[var(--color-code-bg)]">
+    <div
+      ref={containerRef}
+      data-has-line-numbers={showLineNumbers ? 'true' : 'false'}
+      className="code-viewer-area relative max-h-[420px] overflow-auto bg-[var(--color-code-bg)]"
+    >
       {/* Plain-text fallback shown until Shiki finishes highlighting */}
       {!loaded && (
         <pre
@@ -85,7 +91,7 @@ function CodeArea({ code, language, showLineNumbers }: { code: string; language?
             padding: CODE_AREA_PADDING,
             fontFamily: 'var(--font-mono)',
             fontSize: '12px',
-            lineHeight: '1.45',
+            lineHeight: String(CODE_LINE_HEIGHT),
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             color: 'var(--color-code-fg)',
@@ -111,6 +117,7 @@ function CodeArea({ code, language, showLineNumbers }: { code: string; language?
         <ShikiHighlighter
           language={language || 'text'}
           theme={warmCodeTheme}
+          engine={shikiEngine}
           showLineNumbers={showLineNumbers}
           showLanguage={false}
           addDefaultStyles={false}
@@ -118,7 +125,7 @@ function CodeArea({ code, language, showLineNumbers }: { code: string; language?
             margin: 0,
             fontFamily: 'var(--font-mono)',
             fontSize: '12px',
-            lineHeight: '1.45',
+            lineHeight: String(CODE_LINE_HEIGHT),
           }}
         >
           {code}
@@ -128,7 +135,7 @@ function CodeArea({ code, language, showLineNumbers }: { code: string; language?
   )
 }
 
-export function CodeViewer({ code, language, maxLines = 20, showLineNumbers = true }: Props) {
+export function CodeViewer({ code, language, maxLines = 20, showLineNumbers = false }: Props) {
   const [expanded, setExpanded] = useState(false)
 
   const allLines = code.split('\n')

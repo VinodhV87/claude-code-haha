@@ -70,24 +70,27 @@
 
 /* ─── Shiki code viewer ───────────────────────────────────────── */
 .code-viewer-area .line {
-  display: inline-block;
-  width: 100%;
-  padding: 1px 12px;
+  display: block;
+  padding: 0 12px;
 }
 
 .code-viewer-area .has-line-numbers .line {
-  padding-left: 0;
+  padding-left: 12px;
 }
 
 .code-viewer-area .line:hover {
   background: rgba(0, 0, 0, 0.03);
 }
 
+.code-viewer-area .line-numbers::before {
+  margin-right: 1.5ch;
+}
+
 .code-viewer-area .has-line-numbers {
   --line-numbers-foreground: rgba(135, 115, 109, 0.5);
   --line-numbers-width: 2.5ch;
-  --line-numbers-padding-left: 1ch;
-  --line-numbers-padding-right: 1.5ch;
+  --line-numbers-padding-left: 0;
+  --line-numbers-padding-right: 0;
   --line-numbers-font-size: 11px;
 }
 
